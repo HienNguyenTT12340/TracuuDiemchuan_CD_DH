@@ -13,27 +13,27 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     try:
-        # Sử dụng on_bad_lines='skip' để tự động bỏ qua các dòng lỗi cấu trúc lệch cột
+        # Đọc file với bảng mã utf-8-sig và tự động bỏ qua dòng lỗi cấu trúc
         df = pd.read_csv(
             "diem_chuan_toan_quoc.csv", 
             encoding="utf-8-sig", 
             on_bad_lines='skip'
         )
         
-        # Đồng bộ và chuẩn hóa dữ liệu đầu vào để tránh lỗi hiển thị
+        # Chuẩn hóa dữ liệu số và năm
         if "Năm" in df.columns:
             df["Năm"] = df["Năm"].astype(int)
         if "Điểm chuẩn" in df.columns:
             df["Điểm chuẩn"] = pd.to_numeric(df["Điểm chuẩn"], errors='coerce').fillna(0.0)
         return df
         
-    except FileNotFoundError:
-        st.error("❌ Không tìm thấy file 'diem_chuan_toan_quoc.csv' trong thư mục. Vui lòng kiểm tra lại!")
-        return pd.DataFrame(columns=["Trường", "Mã Trường", "Ngành", "Khối", "Năm", "Điểm chuẩn"])
     except Exception as e:
-        # Phương án dự phòng cuối cùng nếu vẫn gặp lỗi phân tách khác
-        st.error(f"⚠️ Hệ thống phát hiện lỗi cấu trúc file dữ liệu: {e}")
-        return pd.DataFrame(columns=["Trường", "Mã Trường", "Ngành", "Khối", "Năm", "Điểm chuẩn"])
+        # Nếu vẫn dính lỗi mã hóa, hệ thống sẽ dùng engine Python tự dò quét bảng mã
+        try:
+            return pd.read_csv("diem_chuan_toan_quoc.csv", encoding="utf-8", on_bad_lines='skip', engine='python')
+        except:
+            st.error(f"⚠️ Không thể đọc file dữ liệu. Vui lòng kiểm tra lại định dạng file CSV: {e}")
+            return pd.DataFrame(columns=["Trường", "Mã Trường", "Ngành", "Khối", "Năm", "Điểm chuẩn"])
 
 df = load_data()
 
