@@ -29,35 +29,34 @@ def load_and_map_columns():
     if df_raw.empty:
         return df_raw
 
-    # Tạo một DataFrame mới sạch sẽ để định vị lại các cột theo đúng ảnh thực tế của bạn
+    # Tạo một DataFrame mới sạch sẽ để định vị lại các cột theo đúng cấu trúc thực tế
     df_clean = pd.DataFrame()
 
-    # Ánh xạ thủ công theo chỉ số vị trí cột (Cột 0, Cột 1, Cột 2...) để không bao giờ bị nhầm cột
     try:
+        # Ánh xạ thủ công theo chỉ số vị trí cột để tránh nhầm lẫn dữ liệu lệch hàng
         df_clean["Trường"] = df_raw.iloc[:, 0].astype(str).str.strip()
         df_clean["Mã Trường"] = df_raw.iloc[:, 1].astype(str).str.strip()
         
-        # Dựa theo ảnh: Cột số 2 (tiêu đề Ngành) thực chất đang chứa Khối
-        df_clean["Khối"] = df_raw.iloc[:, 2].astype(str).str.strip()
+        # Đồng bộ cột Khối: Ép về dạng chuỗi (String) để loại bỏ hoàn toàn các lỗi hỗn hợp kiểu dữ liệu
+        df_clean["Khối"] = df_raw.iloc[:, 2].astype(str).str.strip().fillna("Chưa rõ")
         
-        # Dựa theo ảnh: Cột số 3 (tiêu đề Khối) thực chất đang chứa Điểm số
+        # Định vị cột Điểm số và xử lý số thực sạch
         df_clean["Điểm chuẩn"] = pd.to_numeric(df_raw.iloc[:, 3], errors='coerce').fillna(0.0)
         
-        # Dựa theo ảnh: Cột số 4 chứa Năm
+        # Định vị cột Năm học
         df_clean["Năm"] = pd.to_numeric(df_raw.iloc[:, 4], errors='coerce').fillna(2025).astype(int)
         
-        # Trường hợp file cào thiếu cột Ngành hoặc bị đẩy text đi đâu, lấy tạm thông tin bổ sung
+        # Xử lý cột Ngành nếu có dữ liệu phụ kèm theo
         if df_raw.shape[1] >= 6:
             df_clean["Ngành"] = df_raw.iloc[:, 5].astype(str).str.strip()
         else:
-            # Nếu không thấy cột ngành, chúng ta trích xuất từ cột Trường (vì trong ảnh cột Trường có ghi kèm chữ 2025 chính xác)
             df_clean["Ngành"] = "Thông tin chung"
             
     except Exception as e:
         st.error(f"⚠️ Lỗi định vị cấu trúc hàng/cột: {e}")
         return df_raw
 
-    # Dọn dẹp các ký tự thừa gây lỗi bộ lọc
+    # Loại bỏ các dòng trống không hợp lệ
     df_clean = df_clean.dropna(subset=["Trường"])
     return df_clean
 
@@ -67,7 +66,7 @@ df = load_and_map_columns()
 # 3. GIAO DIỆN HIỂN THỊ VÀ BỘ LỌC ĐA NHIỆM
 # ==========================================
 st.title("🎓 Hệ thống Tra cứu Điểm chuẩn Đại học Toàn quốc")
-st.caption("Phiên bản sửa lỗi map lệch cột và vá crash hiển thị bảng thành công")
+st.caption("Phiên bản cập nhật - Đã vá lỗi TypeError sắp xếp dữ liệu trống thành công")
 
 if not df.empty:
     st.sidebar.header("🔍 Bộ lọc Tìm kiếm")
@@ -86,19 +85,19 @@ if not df.empty:
             filtered_df["Khối"].str.lower().str.contains(kw, na=False)
         ]
 
-    # 2. Bộ lọc chọn Trường
-    all_schools = sorted(filtered_df["Trường"].unique())
+    # 2. Bộ lọc chọn Trường Đại học
+    all_schools = sorted([str(s) for s in filtered_df["Trường"].unique() if str(s).strip() != ""])
     selected_school = st.sidebar.selectbox("Chọn Trường Đại học:", ["Tất cả"] + all_schools)
     if selected_school != "Tất cả":
         filtered_df = filtered_df[filtered_df["Trường"] == selected_school]
 
-    # 3. Bộ lọc chọn khối thi
-    all_blocks = sorted(filtered_df["Khối"].unique())
+    # 3. Bộ lọc chọn khối thi (VÁ LỖI TYPEERROR: Chuyển đổi an toàn danh sách sang chuỗi)
+    all_blocks = sorted([str(b) for b in filtered_df["Khối"].unique() if str(b).strip() != "" and str(b) != "nan"])
     selected_block = st.sidebar.selectbox("Chọn Tổ hợp môn (Khối):", ["Tất cả"] + all_blocks)
     if selected_block != "Tất cả":
         filtered_df = filtered_df[filtered_df["Khối"] == selected_block]
 
-    # 4. Thanh trượt chọn Năm
+    # 4. Thanh trượt chọn khoảng Năm xét tuyển
     years = sorted(df["Năm"].unique())
     if len(years) > 1:
         min_y, max_y = int(min(years)), int(max(years))
@@ -114,11 +113,10 @@ if not df.empty:
         st.subheader("📋 Bảng số liệu chi tiết")
         if not filtered_df.empty:
             display_df = filtered_df.sort_values(by=["Năm", "Điểm chuẩn"], ascending=[False, False])
-            # Hiển thị cấu trúc cột sạch đẹp ra giao diện
             cols_to_show = ["Trường", "Mã Trường", "Khối", "Năm", "Điểm chuẩn"]
             st.dataframe(display_df[cols_to_show], use_container_width=True, hide_index=True)
         else:
-            st.warning("⚠️ Không tìm thấy kết quả trùng khớp. Hãy thử xóa bớt từ khóa.")
+            st.warning("⚠️ Không tìm thấy kết quả trùng khớp. Hãy thử xóa bớt từ khóa tìm kiếm.")
 
     with col2:
         st.subheader("📊 Số liệu thống kê nhanh")
@@ -139,11 +137,11 @@ if not df.empty:
             y="Điểm chuẩn", 
             color="Khối", 
             markers=True,
-            title="Biến động điểm số qua các mùa tuyển sinh"
+            title="Biến động điểm số theo khối xét tuyển"
         )
         fig.update_layout(xaxis_type='category')
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("💡 Mẹo nhỏ: Chọn một Trường cụ thể ở thanh công cụ bên trái để theo dõi biểu đồ đường biến động qua các năm rõ ràng nhất.")
+        st.info("💡 Mẹo nhỏ: Hãy chọn một Trường cụ thể ở thanh công cụ bên trái để theo dõi biểu đồ đường biến động điểm qua các năm rõ ràng nhất.")
 else:
     st.info("Trang web đang đợi nạp tệp cơ sở dữ liệu đầu vào `diem_chuan_toan_quoc.csv`.")
