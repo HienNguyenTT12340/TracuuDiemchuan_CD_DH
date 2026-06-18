@@ -13,8 +13,12 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     try:
-        # Bổ sung tham số encoding="utf-8-sig" để xử lý tiếng Việt có dấu mượt mà
-        df = pd.read_csv("diem_chuan_toan_quoc.csv", encoding="utf-8-sig")
+        # Sử dụng on_bad_lines='skip' để tự động bỏ qua các dòng lỗi cấu trúc lệch cột
+        df = pd.read_csv(
+            "diem_chuan_toan_quoc.csv", 
+            encoding="utf-8-sig", 
+            on_bad_lines='skip'
+        )
         
         # Đồng bộ và chuẩn hóa dữ liệu đầu vào để tránh lỗi hiển thị
         if "Năm" in df.columns:
@@ -22,11 +26,13 @@ def load_data():
         if "Điểm chuẩn" in df.columns:
             df["Điểm chuẩn"] = pd.to_numeric(df["Điểm chuẩn"], errors='coerce').fillna(0.0)
         return df
-    except UnicodeDecodeError:
-        # Phương án dự phòng nếu file bị dính lỗi mã hóa khác (ví dụ từ Excel cũ)
-        return pd.read_csv("diem_chuan_toan_quoc.csv", encoding="latin1")
+        
     except FileNotFoundError:
         st.error("❌ Không tìm thấy file 'diem_chuan_toan_quoc.csv' trong thư mục. Vui lòng kiểm tra lại!")
+        return pd.DataFrame(columns=["Trường", "Mã Trường", "Ngành", "Khối", "Năm", "Điểm chuẩn"])
+    except Exception as e:
+        # Phương án dự phòng cuối cùng nếu vẫn gặp lỗi phân tách khác
+        st.error(f"⚠️ Hệ thống phát hiện lỗi cấu trúc file dữ liệu: {e}")
         return pd.DataFrame(columns=["Trường", "Mã Trường", "Ngành", "Khối", "Năm", "Điểm chuẩn"])
 
 df = load_data()
